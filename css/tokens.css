@@ -1,0 +1,32 @@
+/* tokens.css — sistema de diseño compartido para molecular-simulation (hermano de atomic-simulation) */
+:root {
+  --space: #05070b;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-2: #21262d;
+  --line: #21262d;
+  --line-2: #30363d;
+  --fg: #e6edf3;
+  --muted: #9aa4b0;
+  --dim: #7f8896;
+
+  --gold: #f0c000;
+  --amber: #ffa657;
+  --blue: #58a6ff;
+  --cyan: #79c0ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --violet: #b197fc;
+
+  /* Colores químicos CPK adaptados a fondo oscuro */
+  --atom-c: #8b949e;
+  --atom-h: #e6edf3;
+  --atom-o: #f85149;
+  --atom-n: #58a6ff;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}

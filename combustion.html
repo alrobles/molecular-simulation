@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Simulador interactivo de la combustión del metano (CH₄ + 2 O₂ → CO₂ + 2 H₂O): mecanismo real en cadena de radicales, relación aire/combustible φ (llama azul vs CO tóxico), termoquímica enlace por enlace y visor molecular 3D.">
+<meta name="theme-color" content="#0d1117">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2305070b'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%238b949e'/%3E%3Ccircle cx='16' cy='6' r='3' fill='%23e6edf3'/%3E%3Ccircle cx='7' cy='22' r='3' fill='%23e6edf3'/%3E%3Ccircle cx='25' cy='22' r='3' fill='%23e6edf3'/%3E%3Cline x1='16' y1='11' x2='16' y2='9' stroke='%2358a6ff' stroke-width='2'/%3E%3Cline x1='12' y1='18' x2='9' y2='20' stroke='%2358a6ff' stroke-width='2'/%3E%3Cline x1='20' y1='18' x2='23' y2='20' stroke='%2358a6ff' stroke-width='2'/%3E%3C/svg%3E">
+<title>Combustión del metano — CH₄ + 2 O₂ → CO₂ + 2 H₂O</title>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<style>
+  body { overflow: hidden; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(360px, 430px); }
+  #stage { display: flex; flex-direction: column; min-height: 0; }
+  #toolbar { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); }
+  .spd { padding: 3px 8px; font-size: 12px; }
+  .spd.on { background: var(--gold) !important; color: #000 !important; border-color: var(--gold) !important; }
+
+  #reactorWrap { position: relative; flex: 1.25; min-height: 220px; border-bottom: 1px solid var(--line-2); }
+  #reactor { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #reactorInfo { position: absolute; left: 12px; top: 8px; font-size: 11.5px; color: var(--muted); pointer-events: none; text-shadow: 0 1px 3px #000; font-family: var(--font-mono); }
+  #reactorLegend { position: absolute; left: 12px; bottom: 8px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 10.5px; color: var(--muted); pointer-events: none; text-shadow: 0 1px 3px #000; }
+  #reactorLegend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+  #charts { flex: 0.95; min-height: 180px; display: grid; grid-template-columns: 1.15fr 1fr 1.05fr; gap: 1px; background: var(--line); }
+  .chartBox { position: relative; background: var(--bg); min-height: 0; display: flex; flex-direction: column; }
+  .chartBox > canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .mol-wrap { position: relative; flex: 1; min-height: 0; }
+  .mol-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #molCanvas { cursor: grab; touch-action: none; }
+  #molCanvas:active { cursor: grabbing; }
+  #molCanvas:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
+  #molBar { display: flex; gap: 3px; flex-wrap: wrap; align-items: center; justify-content: flex-end; padding: 4px 6px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .mbtn { padding: 1px 5px; font-size: 10px; font-family: var(--font-mono); border-radius: 4px; background: var(--bg); }
+  .mbtn.on { background: var(--gold); color: #000; border-color: var(--gold); font-weight: 700; }
+
+  #side { overflow-y: auto; padding: 12px 16px; border-left: 1px solid var(--line-2); font-size: 13.5px; line-height: 1.48; }
+  #side h2 { font-size: 14px; color: var(--gold); margin: 12px 0 6px; letter-spacing: 0.2px; }
+  #side h2:first-child { margin-top: 0; }
+
+  .rxn-card { background: var(--surface); border: 1px solid var(--line-2); border-left: 4px solid var(--gold); border-radius: var(--radius-md); padding: 10px 12px; margin-bottom: 10px; }
+  .rxn-eq { font-size: 16px; font-weight: 700; color: var(--fg); }
+  .rxn-eq b { color: var(--gold); }
+  .rxn-sub { font-size: 11.5px; color: var(--green); margin-top: 3px; font-family: var(--font-mono); }
+  #rxnDesc { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
+  .ctl-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+  .ctl-row label { font-size: 12px; color: var(--muted); min-width: 72px; }
+  .ctl-row input[type=range] { flex: 1; min-width: 110px; accent-color: var(--gold); }
+  .ctl-val { font-family: var(--font-mono); font-size: 12px; color: var(--fg); min-width: 66px; text-align: right; }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+  .stat-pill { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 5px 6px; text-align: center; }
+  .stat-pill small { display: block; font-size: 10px; color: var(--muted); }
+  .stat-pill b { font-size: 15px; font-family: var(--font-mono); }
+
+  .bonds-box { background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius-md); padding: 8px 10px; margin: 8px 0; font-size: 12px; }
+  .b-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 0; font-family: var(--font-mono); }
+  .b-row span:last-child { white-space: nowrap; flex-shrink: 0; }
+  .b-brk { color: var(--red); }
+  .b-frm { color: var(--green); }
+  .b-net { border-top: 1px solid var(--line-2); margin-top: 4px; padding-top: 4px; color: var(--gold); font-weight: 700; }
+
+  #rxnLog { background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--radius-md); padding: 7px 9px; max-height: 150px; overflow-y: auto; font-size: 11px; font-family: var(--font-mono); }
+  .rlog-row { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; border-bottom: 1px dashed var(--line); }
+  .rlog-row:last-child { border-bottom: 0; }
+  .rlog-eq { color: var(--fg); }
+  .rlog-exo { color: var(--green); white-space: nowrap; }
+  .rlog-endo { color: var(--amber); white-space: nowrap; }
+
+  @media (pointer: coarse) {
+    #molCanvas { touch-action: pan-y; }
+  }
+  @media (max-width: 1060px) {
+    body { overflow: auto; height: auto; }
+    main { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+    #reactorWrap { flex: none; height: 42vh; min-height: 250px; }
+    #charts { flex: none; grid-template-columns: 1fr; height: auto; }
+    .chartBox { height: 205px; }
+    .chartBox.molBox { height: 230px; }
+    #side { border-left: 0; border-top: 1px solid var(--line-2); }
+  }
+  @media (max-width: 700px) {
+    #reactorLegend { left: 8px; bottom: 5px; gap: 5px 8px; font-size: 9.5px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Combustión del metano <span>mecanismo en cadena de radicales, llama azul vs CO y termoquímica de enlaces</span></h1>
+  <nav id="tabs" class="tabs" aria-label="Regímenes de mezcla aire-combustible"></nav>
+  <nav class="alt" aria-label="Navegación principal">
+    <a href="index.html">← portada orgánica</a> ·
+    <a href="https://alrobles.github.io/atomic-simulation/quimica.html" rel="noopener">hibridación sp³ y enlace (atomic-simulation)</a> ·
+    <a href="https://alrobles.github.io/atomic-simulation/agua.html" rel="noopener">molécula de agua</a> ·
+    <a href="https://alrobles.github.io/atomic-simulation/" rel="noopener">del átomo a la estrella →</a>
+  </nav>
+</header>
+
+<main>
+  <section id="stage">
+    <div id="toolbar">
+      <button id="btnSpark" class="gold" title="Disparar chispa eléctrica: disocia O₂ en radicales ·O· e inicia la cadena">⚡ Chispa de ignición</button>
+      <button id="btnPause" class="go" aria-pressed="false">⏸ Pausa</button>
+      <button id="btnReset">↺ Reiniciar mezcla</button>
+      <div class="seg" role="group" aria-label="Velocidad de simulación">
+        <span class="seglab">Vel.</span>
+        <button class="spd" data-s="0.5" aria-pressed="false">×0.5</button>
+        <button class="spd on" data-s="1" aria-pressed="true">×1</button>
+        <button class="spd" data-s="2" aria-pressed="false">×2</button>
+      </div>
+      <label style="font-size:12px;color:var(--muted);cursor:pointer;margin-left:auto"><input type="checkbox" id="chkAdiab" checked> Adiabático (sin pérdida térmica)</label>
+    </div>
+
+    <div id="reactorWrap">
+      <canvas id="reactor" role="img" aria-label="Reactor 2D de combustión del metano con moléculas de CH4, O2, radicales, CO, CO2 y H2O"></canvas>
+      <div id="reactorInfo"></div>
+      <div id="reactorLegend">
+        <span><i style="background:#6e7681"></i>CH₄</span>
+        <span><i style="background:#f85149"></i>O₂</span>
+        <span><i style="background:#b197fc"></i>radicales / CH₂O</span>
+        <span><i style="background:#ffa657"></i>CO (incompleta)</span>
+        <span><i style="background:#3fb950"></i>CO₂</span>
+        <span><i style="background:#58a6ff"></i>H₂O</span>
+        <span><i style="background:#e6edf3"></i>H₂</span>
+      </div>
+    </div>
+
+    <div id="charts">
+      <div class="chartBox"><canvas id="kinCanvas" role="img" aria-label="Gráfica temporal de concentraciones de especies y temperatura"></canvas></div>
+      <div class="chartBox"><canvas id="profCanvas" role="img" aria-label="Perfil de entalpía de la reacción desde reactivos hasta productos"></canvas></div>
+      <div class="chartBox molBox">
+        <div id="molBar" role="group" aria-label="Seleccionar molécula en el visor 3D"></div>
+        <div class="mol-wrap">
+          <canvas id="molCanvas" tabindex="0" role="application" aria-roledescription="visor molecular 3D interactivo" aria-label="Visor 3D interactivo de geometrías moleculares (arrastra o usa las flechas del teclado para rotar)"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside id="side">
+    <div class="rxn-card">
+      <div class="rxn-eq">CH₄ + 2 O₂ → <b>CO₂ + 2 H₂O(g)</b></div>
+      <div class="rxn-sub">ΔH°(H₂O g) = −802.5 kJ/mol (PCI = 802.5) · ΔH°(H₂O l) = −890.5 kJ/mol (PCS = 890.5)</div>
+      <p id="rxnDesc"></p>
+    </div>
+
+    <h2>Parámetros de la mezcla</h2>
+    <div class="ctl-row">
+      <label for="phiSlider">Equivalencia φ</label>
+      <input type="range" id="phiSlider" min="0.50" max="1.90" step="0.05" value="1.00">
+      <span class="ctl-val" id="phiVal">φ = 1.00</span>
+    </div>
+    <div class="ctl-row">
+      <label for="t0Slider">Temp. inicial T₀</label>
+      <input type="range" id="t0Slider" min="300" max="1100" step="20" value="300">
+      <span class="ctl-val" id="t0Val">300 K</span>
+    </div>
+
+    <h2>Especies en el reactor</h2>
+    <div class="stats-grid">
+      <div class="stat-pill"><small>CH₄</small><b id="stCH4" style="color:#c9d1d9">18</b></div>
+      <div class="stat-pill"><small>CO₂</small><b id="stCO2" style="color:var(--green)">0</b></div>
+      <div class="stat-pill"><small>CO (tóxico)</small><b id="stCO" style="color:var(--amber)">0</b></div>
+      <div class="stat-pill"><small>Radicales</small><b id="stRad" style="color:var(--violet)">0</b></div>
+    </div>
+
+    <div class="kv hl"><span>Temperatura actual T</span><b id="kvT">300 K (27 °C)</b></div>
+    <div class="kv" title="Límite aproximado con Cp medio de llama y sin disociación química de equilibrio"><span>T<sub>ad</sub> aprox. (sin disociación)</span><b id="kvTad">~2235 K</b></div>
+    <div class="kv"><span>Entalpía química liberada</span><b id="kvDH">0 kJ</b></div>
+    <div class="kv"><span>Conservación atómica</span><b id="kvAtoms">—</b></div>
+    <div class="kv"><span>Pasos elementales ocurridos</span><b id="kvRxns">0</b></div>
+
+    <h2>Balance de enlaces (por mol de CH₄)</h2>
+    <div class="bonds-box">
+      <div class="b-row b-brk"><span>Romper 4 × C–H (413) + 2 × O=O (498)</span><span>+2648 kJ/mol</span></div>
+      <div class="b-row b-frm"><span>Formar 2 × C=O en CO₂ (799) + 4 × O–H (463)</span><span>−3450 kJ/mol</span></div>
+      <div class="b-row b-net"><span>Balance neto de enlaces (≈ Hess −802.5)</span><span>−802 kJ/mol</span></div>
+    </div>
+
+    <h2>Registro de pasos elementales</h2>
+    <div id="rxnLog" role="log" aria-live="off"></div>
+
+    <section class="explain">
+      <h2>La química detrás de la llama</h2>
+      <p><b>1. Por qué no arde en frío:</b> aunque la reacción libera <b>802.5 kJ/mol</b>, el enlace C–H medio vale 413 kJ/mol (y disociar el primer C–H cuesta <b>439 kJ/mol</b>); la iniciación térmica <code>CH₄ + O₂ → ·CH₃ + HO₂·</code> exige <b>E<sub>a</sub> = 238 kJ/mol</b>. A 300 K la mezcla es <i>cinéticamente metaestable</i> hasta que una chispa genera radicales libres.</p>
+      <p><b>2. Cadena ramificada (no ocurre en un solo choque):</b> el metano nunca choca con dos O₂ a la vez para dar CO₂. Avanza por abstracción de hidrógeno (<code>CH₄ → ·CH₃ → CH₂O → ·CHO → CO → CO₂</code>), acelerado por la ramificación explosiva <b>·H + O₂ → ·OH + ·O·</b> (un radical produce dos).</p>
+      <p><b>3. Llama azul vs combustión rica (CO):</b> con oxígeno suficiente (φ ≤ 1) el monóxido de carbono se oxida a CO₂ vía <code>CO + ·OH → CO₂ + ·H</code> y la llama es azul (emisión de radicales CH* y C₂*). En mezcla rica (φ &gt; 1.25), el O₂ se agota antes y se acumulan <b>CO tóxico</b> y H₂ (en llamas reales, el tono amarillo brillante proviene sobre todo de partículas de hollín incandescente, no modeladas en este reactor).</p>
+      <p class="note">Modelo didáctico: mecanismo elemental reducido e irreversible de 29 pasos bimoleculares + 1 disociación térmica de ·CHO (30 pasos totales) con conservación exacta de C, H y O y barreras E<sub>a</sub> ≥ ΔH° en todos los pasos endotérmicos. La temperatura sigue la primera ley usando ΔH<sub>f</sub>° (NIST/ATcT) y capacidades caloríficas medias de llama (C<sub>p</sub> constantes, aire 3.76 N₂ por O₂, sin disociación de equilibrio: T<sub>ad</sub> ≈ 2235 K frente a ~2226 K real). Los factores preexponenciales están escalados al número finito de moléculas (~54) en una cámara 2D manteniendo inercia total a 300–600 K y autoignición natural a ~980 K.</p>
+    </section>
+  </aside>
+</main>
+
+<script src="js/combustion.js"></script>
+</body>
+</html>
